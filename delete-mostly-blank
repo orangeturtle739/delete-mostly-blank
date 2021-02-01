@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# based on https://www.street.id.au/446
+# "Delete Blank Pages from a PDF on Linux Command Line"
+
+set -e
+
+if [ "$#" -ne 2 ]; then
+    echo "usage: $0 <input pdf> <output pdf>"
+    exit 1
+fi
+
+IN="$1"
+OUT="$2"
+
+PAGES="$(pdftk "$IN" dump_data  | awk '/NumberOfPages/{print $2}')"
+
+non_blank() {
+    for i in $(seq 1 "$PAGES")
+    do
+        PERCENT=$(gs -o - -dFirstPage="$i" -dLastPage="$i" -sDEVICE=inkcov "$IN" | grep CMYK | nawk 'BEGIN { sum=0; } {sum += $1 + $2 + $3 + $4;} END { printf "%.5f\n", sum } ')
+        if [ "$(echo "$PERCENT > 0.001" | bc)" -eq 1 ]
+        then
+            echo "$i"
+        fi
+    done
+}
+
+set +x
+
+# shellcheck disable=SC2046
+pdftk "$IN" cat $(non_blank) output "$OUT"
+
